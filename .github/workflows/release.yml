@@ -1,0 +1,105 @@
+name: SideStoreVPN Release
+
+on:
+  push:
+    tags:
+      - 'v*.*'
+
+env:
+  PACKAGE_PREFIX: SideStoreVPN
+  MODULE: sidestorevpn
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+
+          if [[ ! $VERSION =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "Invalid version: $VERSION"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Validate project structure
+        run: |
+          test -f config.json.js
+          test -f build.sh
+          test -d "$MODULE"
+          test -f "$MODULE/install.sh"
+          test -f "$MODULE/scripts/${MODULE}_config.sh"
+          test -f "$MODULE/webs/Module_${MODULE}.asp"
+
+      - name: Extract changelog for version
+        id: extract_changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          CHANGELOG_CONTENT=""
+          if [ -f CHANGELOG.md ]; then
+            CHANGELOG_CONTENT=$(awk -v ver="$VERSION" '
+              $0 == "## " ver { found=1; next }
+              found && /^## / { found=0 }
+              found { print }
+            ' CHANGELOG.md | sed '/^[[:space:]]*$/d')
+          fi
+          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGELOG_CONTENT" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update version
+        run: |
+          export VERSION="${{ steps.get_version.outputs.version }}"
+          python3 -c 'import json, os; from pathlib import Path; version=os.environ["VERSION"]; path=Path("config.json.js"); conf=json.loads(path.read_text(encoding="utf-8")); conf["version"]=version; path.write_text(json.dumps(conf, ensure_ascii=False, indent=4, sort_keys=True) + "\n", encoding="utf-8"); Path("sidestorevpn/version").write_text(version, encoding="utf-8")'
+
+      - name: Syntax check
+        run: |
+          sh -n sidestorevpn/install.sh
+          sh -n sidestorevpn/uninstall.sh
+          sh -n sidestorevpn/scripts/sidestorevpn_config.sh
+
+      - name: Run tests
+        run: |
+          if [ -x tests/run.sh ]; then
+            tests/run.sh
+          fi
+
+      - name: Build package
+        id: build_package
+        run: |
+          ./build.sh
+          VERSION="${{ steps.get_version.outputs.version }}"
+          ARCHIVE_NAME="${PACKAGE_PREFIX}_v${VERSION}.tar.gz"
+          test -f "$ARCHIVE_NAME"
+          MD5=$(python3 -c 'import json; print(json.load(open("config.json.js", encoding="utf-8"))["md5"])')
+          echo "archive_name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
+          echo "md5=$MD5" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag_name }}
+          name: SideStoreVPN v${{ steps.get_version.outputs.version }}
+          body: |
+            ### 更新内容
+            ${{ steps.extract_changelog.outputs.changelog }}
+
+            MD5: `${{ steps.build_package.outputs.md5 }}`
+          files: |
+            ${{ steps.build_package.outputs.archive_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
