@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- fix: 修复与 1.9.58 软件中心的兼容问题
+
 ## 1.0.0
 
 - add: 首个可用版本，支持在 rogsoft/koolshare 软件中心离线安装 SideStoreVPN 插件。

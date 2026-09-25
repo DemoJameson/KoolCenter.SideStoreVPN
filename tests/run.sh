@@ -75,6 +75,14 @@ sh -n "${ROOT}/sidestorevpn/install.sh"
 sh -n "${ROOT}/sidestorevpn/uninstall.sh"
 sh -n "$SCRIPT"
 
+# 软件中心的离线安装流程会拦截 install.sh 中包含以下字符串的安装包，视为篡改软件中心文件
+for bad in ks_tar_install detect_package; do
+	if grep -q "$bad" "${ROOT}/sidestorevpn/install.sh"; then
+		echo "install.sh must not contain forbidden string: $bad" >&2
+		exit 1
+	fi
+done
+
 : >"$LOG"
 sh "$SCRIPT" start >/dev/null
 grep -q -- '-t nat -N SIDESTORE_CHAIN' "$LOG"

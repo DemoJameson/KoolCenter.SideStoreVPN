@@ -10,6 +10,13 @@ SideStoreVPN 是一个面向 koolshare/rogsoft 软件中心的离线插件。它
 - 支持开机启动和 NAT/网络重载后自动恢复规则。
 - 使用 `iptables` 创建 DNAT/SNAT 规则，不依赖 StosVPN 或 LocalDevVPN。
 
+## 兼容性
+
+- 适用于 koolshare 软件中心（rogsoft，1.5 代 web api）以及当前版本的新版软件中心（1.9.x）。
+- 已适配新版软件中心的多平台校验：`sidestorevpn/.valid` 包含 `hnd`、`qca`、`mtk`、`ipq32`、`ipq64`，安装时按机型自动校验；`install.sh` 会再校验一次，防止安装包被装到不支持的平台。
+- 安装包名为 `SideStoreVPN_v版本.tar.gz`，包内目录必须保持 `sidostorevpn`（模块名，软件中心的安装/卸载、`softcenter_module_*` 键都依赖它）。因为文件名前缀与目录名不同，软件中心会退回用 `find /tmp -name install.sh` 定位安装脚本，所以包内只应有一个 `install.sh`。
+- 仓库内脚本统一使用 LF 换行（已由 `.gitattributes` 固定，打包时也会自动把 `.sh` 规范为 LF）。新版软件中心用 `start-stop-daemon` 直接执行 `install.sh`，CRLF 会让 shebang 变成 `#!/bin/sh\r` 而导致安装失败。
+
 ## 打包
 
 ```sh
@@ -19,14 +26,14 @@ SideStoreVPN 是一个面向 koolshare/rogsoft 软件中心的离线插件。它
 构建完成后会在仓库根目录生成：
 
 ```text
-SideStoreVPN_v1.0.0.tar.gz
+SideStoreVPN_v1.0.1.tar.gz
 ```
 
 实际版本号来自 `config.json.js` 中的 `version` 字段。
 
 ## 使用说明
 
-1. 在 rogsoft 软件中心离线安装 `SideStoreVPN_v版本.tar.gz`。
+1. 在软件中心离线安装 `SideStoreVPN_v版本.tar.gz`。
 2. 打开 SideStoreVPN 插件页面。
 3. 在设备列表中选择或手动添加需要使用 SideStore 的苹果设备。
 4. 如无特殊情况，不要修改虚拟 iTunes 设备 IP。

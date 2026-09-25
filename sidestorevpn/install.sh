@@ -4,7 +4,7 @@
 alias echo_date='echo 【$(TZ=UTC-8 date -R +%Y年%m月%d日\ %X)】:'
 
 TITLE="SideStoreVPN"
-DESCR="SideStore 内网免 StosVPN，使用 iptables 模拟 StosVPN 地址交换逻辑"
+DESCR="SideStore 内网免 LocalDevVPN，使用 iptables 模拟 StosVPN 地址交换逻辑"
 DIR=$(cd "$(dirname "$0")"; pwd)
 module=${DIR##*/}
 
@@ -22,12 +22,55 @@ dbus_nset() {
 	fi
 }
 
+get_model() {
+	local odmpid productid
+	odmpid=$(nvram get odmpid 2>/dev/null)
+	productid=$(nvram get productid 2>/dev/null)
+	if [ -n "${odmpid}" ]; then
+		MODEL="${odmpid}"
+	else
+		MODEL="${productid}"
+	fi
+}
+
+get_platform() {
+	# 平台判定与软件中心对机型的平台划分保持一致
+	case "${MODEL}" in
+		TX-AX6000|TUF-AX4200Q|RT-AX57_Go|GS7|ZenWiFi_BT8P|GS7_Air|GS-BE7200X)
+			echo "mtk"
+			;;
+		ZenWiFi_BD4)
+			echo "ipq32"
+			;;
+		TUF_6500)
+			echo "ipq64"
+			;;
+		RT-AX89X)
+			echo "qca"
+			;;
+		*)
+			echo "hnd"
+			;;
+	esac
+}
+
 platform_test() {
-	if [ ! -d "/koolshare" ] || [ ! -f "/usr/bin/skipd" ]; then
+	local linux_ver platform
+	linux_ver=$(uname -r | awk -F"." '{print $1$2}')
+	if [ ! -d "/koolshare" ] || [ ! -f "/usr/bin/skipd" ] || [ "${linux_ver}" -lt "41" ]; then
 		echo_date "未检测到软件中心环境，退出安装！"
 		exit_install 1
 	fi
-	echo_date "软件中心环境符合安装要求，开始安装插件！"
+
+	get_model
+	platform=$(get_platform)
+	# .valid 由软件中心在离线安装时校验，这里再校验一次，防止安装包被手工装到不支持的平台
+	if [ -f "${DIR}/.valid" ] && ! grep -q "${platform}" "${DIR}/.valid" 2>/dev/null; then
+		echo_date "机型 ${MODEL} 属于 ${platform} 平台，本安装包不支持该平台，退出安装！"
+		echo_date "本插件支持平台/机型详见：https://github.com/koolshare/rogsoft"
+		exit_install 1
+	fi
+	echo_date "机型 ${MODEL}（${platform} 平台）符合安装要求，开始安装插件！"
 }
 
 install_now() {
@@ -63,7 +106,7 @@ install_now() {
 	dbus set ${module}_version="${PLVER}"
 	dbus set softcenter_module_${module}_version="${PLVER}"
 	dbus set softcenter_module_${module}_install="1"
-	dbus set softcenter_module_${module}_name="${TITLE}"
+	dbus set softcenter_module_${module}_name="${module}"
 	dbus set softcenter_module_${module}_title="${TITLE}"
 	dbus set softcenter_module_${module}_description="${DESCR}"
 
